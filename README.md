@@ -1,245 +1,276 @@
+
 # DeepRec — A Two-Stage Deep Learning Video Recommendation System
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.25+-ff4b4b.svg)](https://streamlit.io/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.25+-ff4b4b.svg)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-> **Research Foundation:** Inspired by the landmark industrial recommendation paper:  
-> *“Deep Neural Networks for YouTube Recommendations”*  
-> **Authors:** Paul Covington, Jay Adams, Emre Sargin (Google, ACM RecSys 2016).
+> **Research foundation:** Inspired by *Deep Neural Networks for YouTube Recommendations* by Paul Covington, Jay Adams, and Emre Sargin (ACM RecSys 2016).
 
----
+## 1. Project Overview
 
-## 1. Project Overview & Problem Statement
+DeepRec implements a two-stage recommendation architecture inspired by YouTube's recommendation system.
 
-Recommendation systems operate under extreme scale constraints. Delivering relevant, low-latency recommendations across millions of items cannot be accomplished with a single dense neural network. 
+Recommendation systems must identify relevant items from large catalogues while maintaining good recommendation quality and low latency. A two-stage architecture separates candidate retrieval from detailed ranking.
 
-**DeepRec** implements Google's classic **Two-Stage Recommendation Architecture**:
-1. **Stage 1 — Candidate Generation (Nomination):** Filters the catalogue of thousands/millions of items down to hundreds of high-recall candidates in sub-millisecond time using sequence-to-item embeddings and masked average pooling.
-2. **Stage 2 — Deep Ranking (Scoring):** Employs a fine-grained deep neural network with continuous feature normalizations, power transforms ($x, x^2, \sqrt{x}$), and collaborative/genre signals to score and rerank candidates into the final top-N personalized feed.
+### Stage 1 — Candidate Generation
+A neural network converts a user's chronological watch history and contextual information into a user representation. It retrieves a shortlist of potentially relevant movies from the catalogue.
 
-DeepRec is built using **Python, PyTorch, FastAPI, and Streamlit**, complete with strict chronological sequence generation, leakage prevention, benchmark baselines, offline evaluation metrics (Recall@K, NDCG@K, Precision@K, MAP@K, Coverage, Latency), and interactive inspection.
+### Stage 2 — Deep Ranking
+A ranking network evaluates the retrieved candidates using user, item, historical interaction, rating, popularity, and genre-affinity features. The candidates are then ranked to produce personalized recommendations.
 
----
+**Technology stack:** Python, PyTorch, FastAPI, Streamlit, and the MovieLens 100K dataset.
+
+The project includes chronological data splitting, leakage prevention, baseline comparisons, offline evaluation, a REST API, and an interactive dashboard.
+
+
+## 2. System Architecture
+
+The system follows a two-stage recommendation pipeline: candidate generation retrieves relevant movies, and the ranking model orders them to produce personalized recommendations.
+
 
 ## 2. System Architecture
 
 ```mermaid
-graph TD
-    A[Full Catalogue: 1,682 Items] --> B[Stage 1: Deep Candidate Generation]
-    H[Chronological Watch History w_1 ... w_T] --> B
-    C[User Demographics & Context: Age, Gender, Occupation] --> B
-    
-    B -->|Top-100 High Recall Candidates| D[Stage 2: Deep Neural Ranker]
-    
-    subgraph Feature Engineering (Train-Fitted)
-        F1[Candidate Logit Score]
-        F2[Item Train Popularity & Bayesian Mean Rating]
-        F3[User History Stats & Interaction Recency]
-        F4[User-Item Genre Cosine Affinity]
-        F5[Power Transforms: x, x^2, sqrt x]
-    end
-    F1 --> D
-    F2 --> D
-    F3 --> D
-    F4 --> D
-    F5 --> D
-    
-    D -->|Calibrated Engagement Probability| E[Deduplication & Seen-Item Filter]
-    E -->|Final Top-10 Personalized Feed| UI[Interactive Dashboard & REST API]
+flowchart TD
+    A["Movie Catalogue"] --> B["Stage 1: Candidate Generation"]
+    H["User Watch History"] --> B
+    U["User Demographics and Context"] --> B
+
+    B --> C["Top-100 Candidate Movies"]
+    C --> D["Feature Engineering"]
+    D --> E["Stage 2: Deep Ranking Network"]
+    E --> F["Ranked Movie Recommendations"]
+    F --> G["Remove Previously Watched Movies"]
+    G --> I["Final Top-10 Recommendations"]
+
+    I --> J["FastAPI REST API"]
+    I --> K["Streamlit Dashboard"]
+
+    style B fill:#dbeafe,stroke:#2563eb,color:#111827
+    style E fill:#dcfce7,stroke:#16a34a,color:#111827
+    style I fill:#fef3c7,stroke:#d97706,color:#111827
 ```
 
----
 
-## 3. Two-Stage Pipeline Details
+## 3. Model Implementation
 
 ### Stage 1: Candidate Generation
-- **Representation:** Sequence of item IDs embedded into $\mathbb{R}^d$, followed by masked average pooling that excludes padding token `0`.
-- **Demographic Context:** Normalized continuous age projection, gender embedding, and occupation embedding concatenated with history representation.
-- **Hidden Layers:** Configurable multi-layer perceptron (`[128, 64]` with LayerNorm, ReLU, and Dropout).
-- **Output Layer:** Candidate item output embeddings $V$ and biases $b$.
-- **Training Objective:** Extreme multiclass classification trained via **Sampled Softmax Cross-Entropy** with uniform negative sampling.
-- **Inference:** Fast batched matrix dot product: $\mathbf{s} = u \cdot V^\top + b$, returning top-100 candidates in $<1$ ms.
+
+- **Input:** Chronological item history, age, gender, and occupation.
+- **Embeddings:** Learn dense representations of items and categorical user attributes.
+- **History representation:** Masked average pooling excludes padding tokens.
+- **Neural network:** Configurable MLP with hidden dimensions `[128, 64]`, LayerNorm, ReLU, and dropout.
+- **Training objective:** Sampled softmax classification with negative sampling.
+- **Retrieval:** Calculate user-to-item scores using vectorized matrix multiplication and retrieve the highest-scoring candidates.
 
 ### Stage 2: Deep Ranking
-- **Inputs:** Candidate generation logit, item training popularity, item rating statistics, user historical mean rating, user interaction count, interaction recency (elapsed days), movie release year, and genre affinity.
-- **Continuous Transforms:** Features are standardized using training data statistics and augmented with powers: $x, x^2, \sqrt{x}$ as specified in Section 4.1 of the paper.
-- **Categorical Embeddings:** User ID and Movie ID dense embeddings.
-- **Architecture:** Dense MLP (`[128, 64, 32]` with LayerNorm, ReLU, and Dropout) with a single sigmoid-activated output head.
-- **Training Objective:** Binary Cross-Entropy with Logits on high-engagement interaction proxy (rating $\ge 4.0$).
 
----
+The ranking model evaluates each candidate using features such as:
 
-## 4. Empirical Benchmark Results
+- Candidate-generation score
+- Item popularity and rating statistics
+- User interaction count and historical mean rating
+- Interaction recency
+- Movie release year
+- User-item genre affinity
+- User and movie embeddings
 
-Evaluated on the held-out temporal test set (final chronological interaction per user across 943 users):
+Continuous features are standardized using training-set statistics. Selected features are augmented with power transforms:
 
-| Experiment | Model Architecture | Recall@10 | Recall@50 | Precision@10 | NDCG@10 | MAP@10 | Catalog Coverage | Latency (ms) |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Exp A** | Popularity Baseline | 0.0267 | 0.1100 | 0.0027 | 0.0117 | 0.0069 | 3.80% | 0.01 ms |
-| **Exp B** | Item-Item Collaborative Filtering | 0.0533 | 0.2967 | 0.0053 | 0.0268 | 0.0182 | 62.96% | 0.06 ms |
-| **Exp C** | Shallow Candidate Net [64] | 0.0433 | 0.1167 | 0.0043 | 0.0173 | 0.0089 | 15.22% | 0.77 ms |
-| **Exp D** | **Deep Candidate Net [128, 64]** | **0.0867** | **0.2667** | **0.0087** | **0.0387** | **0.0232** | **49.23%** | **0.88 ms** |
-| **Exp E** | Candidate Net + Context | **0.0867** | **0.2667** | **0.0087** | **0.0387** | **0.0232** | **49.23%** | **0.81 ms** |
-| **Exp F** | Two-Stage (Candidate + Ranker, Pool=100) | 0.0367 | 0.2167 | 0.0037 | 0.0193 | 0.0137 | 49.35% | 2.13 ms |
-| **Exp G1** | Two-Stage (Candidate Pool = 50) | 0.0533 | 0.2667 | 0.0053 | 0.0276 | 0.0194 | 49.23% | 1.94 ms |
-| **Exp G2** | Two-Stage (Candidate Pool = 200) | 0.0300 | 0.1500 | 0.0030 | 0.0169 | 0.0127 | 47.98% | 2.75 ms |
+\[
+x,\quad x^2,\quad \sqrt{x}
+\]
 
-> [!NOTE]  
-> Deep Candidate Generation achieves **3.25x the Recall@10 of the Popularity Baseline** while discovering **13x more catalogue items** (49.2% vs 3.8% coverage) with a mean latency of only **0.88 ms**.
+The ranking network uses an MLP with hidden dimensions `[128, 64, 32]` and a sigmoid probability output. Training uses binary cross-entropy with logits, with ratings of 4.0 or higher treated as positive engagement.
 
----
+## 4. Benchmark Results
+
+The following table contains the reported experimental results. Reproduce the experiments to verify these figures before presenting them as independently validated results.
+
+| Experiment | Model | Recall@10 | Recall@50 | Precision@10 | NDCG@10 | MAP@10 | Coverage | Latency |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| A | Popularity Baseline | 0.0267 | 0.1100 | 0.0027 | 0.0117 | 0.0069 | 3.80% | 0.01 ms |
+| B | Item-Item Collaborative Filtering | 0.0533 | 0.2967 | 0.0053 | 0.0268 | 0.0182 | 62.96% | 0.06 ms |
+| C | Shallow Candidate Net [64] | 0.0433 | 0.1167 | 0.0043 | 0.0173 | 0.0089 | 15.22% | 0.77 ms |
+| D | Deep Candidate Net [128, 64] | 0.0867 | 0.2667 | 0.0087 | 0.0387 | 0.0232 | 49.23% | 0.88 ms |
+| E | Candidate Net + Context | 0.0867 | 0.2667 | 0.0087 | 0.0387 | 0.0232 | 49.23% | 0.81 ms |
+| F | Two-Stage, Pool 100 | 0.0367 | 0.2167 | 0.0037 | 0.0193 | 0.0137 | 49.35% | 2.13 ms |
+| G1 | Two-Stage, Pool 50 | 0.0533 | 0.2667 | 0.0053 | 0.0276 | 0.0194 | 49.23% | 1.94 ms |
+| G2 | Two-Stage, Pool 200 | 0.0300 | 0.1500 | 0.0030 | 0.0169 | 0.0127 | 47.98% | 2.75 ms |
+
+**Reported finding:** The deep candidate-generation model achieves approximately 3.25× the Recall@10 of the popularity baseline, with catalogue coverage increasing from 3.80% to 49.23%.
+
+These results are dataset- and experiment-specific; they do not establish production-scale performance.
 
 ## 5. Repository Structure
 
-```
+```text
 DeepRec/
-├── RDS_ProjectPaper.pdf            # Research paper reference
-├── README.md                       # Comprehensive documentation
-├── requirements.txt                # Python dependencies
-├── .gitignore                      # Git ignore rules
-├── .gitattributes                 # Line-ending and binary tracking
+├── README.md
+├── RDS_ProjectPaper.pdf
+├── requirements.txt
+├── .gitignore
+├── .gitattributes
 ├── configs/
-│   └── model.yaml                  # Unified pipeline & hyperparameter configuration
+│   └── model.yaml
 ├── data/
-│   ├── raw/ml-100k/                # Extracted MovieLens dataset
-│   └── processed/                  # Temporal train/val/test splits, mappings, metadata
+│   ├── raw/ml-100k/
+│   └── processed/
 ├── artifacts/
-│   ├── candidate/                  # Candidate model checkpoint & metadata
-│   ├── ranking/                    # Ranking model checkpoint & feature extractor
-│   └── evaluation/                 # Metrics JSON, benchmark CSVs, comparison plots
+│   ├── candidate/
+│   ├── ranking/
+│   └── evaluation/
 ├── docs/
-│   ├── paper_implementation_mapping.md # Section-by-section comparison with paper
-│   ├── architecture.md             # Detailed network diagrams and math formulas
-│   ├── data_dictionary.md          # Complete data and feature dictionary
-│   ├── experiments.md              # Empirical results, ablations, latency analysis
-│   └── limitations.md              # Dataset differences, assumptions, boundary conditions
+│   ├── paper_implementation_mapping.md
+│   ├── architecture.md
+│   ├── data_dictionary.md
+│   ├── experiments.md
+│   └── limitations.md
 ├── src/
 │   └── deeprec/
 │       ├── __init__.py
-│       ├── config.py               # YAML configuration and device loader
+│       ├── config.py
 │       ├── data/
-│       │   ├── download.py         # Dataset download & verification
-│       │   ├── inspect.py          # Data inspection & shapes reporting
-│       │   ├── preprocess.py       # Deterministic temporal split & ID mapping
-│       │   ├── sequences.py        # Causal rolling history generator (no leakage)
-│       │   ├── dataset.py          # PyTorch Datasets & DataLoaders
-│       │   └── ranking_features.py # Feature extraction, normalization & powers
+│       │   ├── download.py
+│       │   ├── inspect.py
+│       │   ├── preprocess.py
+│       │   ├── sequences.py
+│       │   ├── dataset.py
+│       │   └── ranking_features.py
 │       ├── models/
-│       │   ├── candidate_generation.py # Deep Candidate Generator
-│       │   ├── ranking.py          # Deep Ranking Network
-│       │   └── baseline.py         # Popularity and Item-Item CF Baselines
+│       │   ├── candidate_generation.py
+│       │   ├── ranking.py
+│       │   └── baseline.py
 │       ├── training/
-│       │   ├── losses.py           # Sampled Softmax & BPR Loss
-│       │   ├── train_candidates.py # Stage 1 training & checkpointing
-│       │   └── train_ranker.py     # Stage 2 training & checkpointing
+│       │   ├── losses.py
+│       │   ├── train_candidates.py
+│       │   └── train_ranker.py
 │       ├── retrieval/
-│       │   └── retrieve.py         # Vectorized candidate retriever & cold start
+│       │   └── retrieve.py
 │       ├── evaluation/
-│       │   ├── metrics.py          # Precision, Recall, NDCG, MAP, Coverage
-│       │   ├── evaluate.py         # Stage 1 and Two-Stage test evaluation
-│       │   └── experiments.py      # Experiments A through G benchmark runner
+│       │   ├── metrics.py
+│       │   ├── evaluate.py
+│       │   └── experiments.py
 │       ├── service/
-│       │   └── recommender.py      # End-to-end two-stage service orchestrator
+│       │   └── recommender.py
 │       └── api/
-│           └── main.py             # FastAPI REST endpoints
+│           └── main.py
 ├── dashboard/
-│   └── app.py                      # Interactive Streamlit Web Dashboard
+│   └── app.py
 └── tests/
-    ├── test_data.py                # Preprocessing, filtering, and split tests
-    ├── test_sequences.py           # Padding, masking, and leakage tests
-    ├── test_candidate_model.py     # Shapes, forward pass, loss, checkpoint tests
-    ├── test_ranking_model.py       # Ranking features, powers, and loss tests
-    ├── test_metrics.py             # Known-answer metric tests
-    ├── test_recommender.py         # Filtering, cold start, and schema tests
-    └── test_api.py                 # FastAPI endpoints tests
+    ├── test_data.py
+    ├── test_sequences.py
+    ├── test_candidate_model.py
+    ├── test_ranking_model.py
+    ├── test_metrics.py
+    ├── test_recommender.py
+    └── test_api.py
 ```
 
----
+This tree documents the intended project structure. Ensure each listed file exists before claiming the implementation is complete.
 
-## 6. Installation & Execution Guide (Windows PowerShell)
+## 6. Installation and Execution
 
-### Step 1: Environment Setup
+Commands below are for Windows PowerShell, executed from the repository root.
+
+### Step 1: Set up the environment
+
 ```powershell
-# Clone or navigate to repository root
-cd C:\Users\hp\OneDrive\Desktop\DeepRec
-
-# Activate the virtual environment
+py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-
-# Verify Python and dependencies
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### Step 2: Data Pipeline
+### Step 2: Download and inspect the dataset
+
 ```powershell
-# Download MovieLens 100K (verifies existing files before downloading)
 python -m src.deeprec.data.download
-
-# Inspect dataset shapes, missing values, and rating distributions
 python -m src.deeprec.data.inspect
-
-# Preprocess with zero-padding token and strict temporal split
 python -m src.deeprec.data.preprocess
 ```
 
-### Step 3: Model Training
-```powershell
-# Train Stage 1: Deep Candidate Generation Model
-python -m src.deeprec.training.train_candidates --epochs 10
+### Step 3: Train the models
 
-# Train Stage 2: Deep Ranking Model
+```powershell
+python -m src.deeprec.training.train_candidates --epochs 10
 python -m src.deeprec.training.train_ranker --epochs 10
 ```
 
-### Step 4: Model Evaluation & Experiments
-```powershell
-# Run full evaluation on held-out test split
-python -m src.deeprec.evaluation.evaluate
+### Step 4: Evaluate the recommendations
 
-# Run benchmark experiments A through G (generates CSV and comparison plot)
+```powershell
+python -m src.deeprec.evaluation.evaluate
 python -m src.deeprec.evaluation.experiments --max_users 300
 ```
 
-### Step 5: Run Unit Tests
+### Step 5: Run tests
+
 ```powershell
 python -m pytest tests -v
 ```
 
-### Step 6: Start REST API
+### Step 6: Start the REST API
+
 ```powershell
 uvicorn src.deeprec.api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-Interactive API documentation will be available at:  
-👉 **http://127.0.0.1:8000/docs**
 
-### Step 7: Launch Interactive Dashboard
+API documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+### Step 7: Launch the dashboard
+
+Open a second PowerShell terminal, activate the virtual environment, and run:
+
 ```powershell
 streamlit run dashboard/app.py
 ```
-Dashboard will open at:  
-👉 **http://localhost:8501**
 
----
+Dashboard: [http://localhost:8501](http://localhost:8501)
 
 ## 7. REST API Endpoints
 
 | Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/health` | Service status, device, and artifact loading report. |
-| `GET` | `/movies` | Paginated movie catalogue items with genre filters. |
-| `GET` | `/recommendations/{user_id}` | Two-stage recommendations with candidate and ranking scores. |
-| `POST` | `/interactions` | Record user interaction dynamically in the in-memory buffer. |
-| `GET` | `/metrics` | Returns saved evaluation metrics and experiment comparisons. |
+|---|---|---|
+| GET | `/health` | Service status, device, and model artifact status |
+| GET | `/movies` | Paginated movie catalogue with genre filters |
+| GET | `/recommendations/{user_id}` | Personalized recommendations with scores |
+| POST | `/interactions` | Record a user interaction |
+| GET | `/metrics` | Retrieve saved evaluation metrics |
 
----
+Endpoint availability depends on the implemented API routes.
 
-## 8. Limitations & Future Work
+## 8. Evaluation Methodology
 
-- **Duration Modeling:** MovieLens lacks continuous video watch durations; future extensions could incorporate session watch durations from streaming datasets.
-- **ANN Serving:** For millions of catalogue items, integration with FAISS or ScaNN would replace exact matrix multiplication.
-- **Online A/B Testing:** Offline metrics serve as a directional proxy; real-world efficacy requires live online interleaving or A/B testing.
+DeepRec evaluates recommendation quality and system performance using:
 
-See [`docs/limitations.md`](file:///docs/limitations.md) and [`docs/paper_implementation_mapping.md`](file:///docs/paper_implementation_mapping.md) for thorough discussions.
+- **Recall@K:** Fraction of relevant items retrieved in the top K.
+- **Precision@K:** Fraction of recommended items that are relevant.
+- **NDCG@K:** Ranking quality with higher weight for relevant items near the top.
+- **MAP@K:** Mean average precision across users.
+- **Catalogue coverage:** Fraction of catalogue items recommended.
+- **Latency:** Time required to generate recommendations.
+
+Chronological train/validation/test splitting helps prevent future interactions from leaking into training. Preprocessing statistics and feature transformations should be fitted on training data only.
+
+## 9. Limitations and Future Work
+
+- **Watch duration:** MovieLens 100K does not provide continuous video watch-duration data.
+- **Large catalogues:** Approximate nearest-neighbor retrieval, such as FAISS, could replace exact matrix multiplication at larger scales.
+- **Online evaluation:** Offline metrics cannot replace live A/B testing.
+- **Ranking performance:** Candidate-generation improvements do not guarantee improvements in the complete two-stage pipeline.
+- **Reproducibility:** Reported benchmark results should be verified against the saved experiment outputs and evaluation protocol.
+
+For further details, see:
+
+- [Paper Implementation Mapping](docs/paper_implementation_mapping.md)
+- [Architecture](docs/architecture.md)
+- [Experiments](docs/experiments.md)
+- [Limitations](docs/limitations.md)
+
+## 10. License
+
+This project declares the MIT License. Add a `LICENSE` file containing the appropriate MIT license text before distributing the repository under that license.
