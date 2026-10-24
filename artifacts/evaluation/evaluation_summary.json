@@ -1,0 +1,39 @@
+{
+  "candidate_generation": {
+    "catalog_coverage": 0.5434,
+    "recall@10": 0.0901,
+    "precision@10": 0.009,
+    "ndcg@10": 0.0394,
+    "map@10": 0.0244,
+    "recall@20": 0.1336,
+    "precision@20": 0.0067,
+    "ndcg@20": 0.0503,
+    "map@20": 0.0273,
+    "recall@50": 0.2757,
+    "precision@50": 0.0055,
+    "ndcg@50": 0.0782,
+    "map@50": 0.0317
+  },
+  "two_stage_pipeline": {
+    "catalog_coverage": 0.5452,
+    "recall@10": 0.052,
+    "precision@10": 0.0052,
+    "ndcg@10": 0.0243,
+    "map@10": 0.016,
+    "recall@20": 0.0986,
+    "precision@20": 0.0049,
+    "ndcg@20": 0.0359,
+    "map@20": 0.0191,
+    "recall@50": 0.2238,
+    "precision@50": 0.0045,
+    "ndcg@50": 0.0603,
+    "map@50": 0.0229
+  },
+  "latency_ms": {
+    "retrieval_mean": 0.9342522799513197,
+    "ranking_mean": 1.1290737009293579,
+    "total_mean": 2.0633259808806774
+  },
+  "catalog_size": 1682,
+  "evaluation_users": 943
+}

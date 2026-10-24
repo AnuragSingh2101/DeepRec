@@ -1,0 +1,59 @@
+# DeepRec Configuration File
+# Two-Stage Deep Learning Video Recommendation System
+
+system:
+  seed: 42
+  device: "auto" # "auto", "cuda", or "cpu"
+  num_workers: 0
+
+paths:
+  raw_data_dir: "data/raw/ml-100k"
+  raw_zip_path: "data/raw/ml-100k.zip"
+  dataset_url: "https://files.grouplens.org/datasets/movielens/ml-100k.zip"
+  processed_data_dir: "data/processed"
+  candidate_artifact_dir: "artifacts/candidate"
+  ranking_artifact_dir: "artifacts/ranking"
+  evaluation_artifact_dir: "artifacts/evaluation"
+  candidate_model_path: "artifacts/candidate/candidate_model.pt"
+  ranking_model_path: "artifacts/ranking/ranking_model.pt"
+  metadata_path: "artifacts/candidate/metadata.json"
+  ranking_metadata_path: "artifacts/ranking/ranking_metadata.json"
+
+data:
+  min_interactions_per_user: 5
+  max_history_length: 20
+  relevance_rating_threshold: 4.0 # For evaluation: rating >= 4.0 is considered relevant positive
+  val_items_per_user: 1 # Leave-last-2-out: 2nd-to-last item is validation
+  test_items_per_user: 1 # Leave-last-2-out: last item is test
+
+candidate_generation:
+  embedding_dim: 64
+  hidden_dims: [128, 64]
+  dropout: 0.1
+  use_context_features: true
+  num_negatives: 10 # Number of negative items sampled per positive training example
+  learning_rate: 0.001
+  weight_decay: 1.0e-5
+  batch_size: 256
+  epochs: 15
+  early_stopping_patience: 3
+
+ranking:
+  embedding_dim: 32
+  hidden_dims: [128, 64, 32]
+  dropout: 0.1
+  learning_rate: 0.001
+  weight_decay: 1.0e-5
+  batch_size: 256
+  epochs: 12
+  early_stopping_patience: 3
+  loss_type: "bce" # "bce" or "pairwise_bpr"
+
+retrieval:
+  top_k_candidates: 100 # Number of candidates retrieved from candidate generation stage
+  top_n_final: 10 # Final recommendations returned to user after reranking
+  exclude_seen: true # Exclude items in user interaction history
+
+evaluation:
+  k_values: [10, 20, 50]
+  candidate_pool_sizes: [50, 100, 200]

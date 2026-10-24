@@ -1,0 +1,15 @@
+pandas
+numpy
+scikit-learn
+torch
+tqdm
+matplotlib
+seaborn
+fastapi
+uvicorn[standard]
+streamlit
+requests
+httpx
+pytest
+PyYAML
+pypdf

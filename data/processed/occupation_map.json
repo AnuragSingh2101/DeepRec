@@ -1,0 +1,23 @@
+{
+  "administrator": 0,
+  "artist": 1,
+  "doctor": 2,
+  "educator": 3,
+  "engineer": 4,
+  "entertainment": 5,
+  "executive": 6,
+  "healthcare": 7,
+  "homemaker": 8,
+  "lawyer": 9,
+  "librarian": 10,
+  "marketing": 11,
+  "none": 12,
+  "other": 13,
+  "programmer": 14,
+  "retired": 15,
+  "salesman": 16,
+  "scientist": 17,
+  "student": 18,
+  "technician": 19,
+  "writer": 20
+}

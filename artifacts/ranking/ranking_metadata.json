@@ -1,0 +1,93 @@
+{
+  "model": "DeepRankingModel",
+  "best_epoch": 6,
+  "best_val_auc": 0.7922691099381638,
+  "training_duration_seconds": 37.41,
+  "continuous_dim": 27,
+  "feature_names": [
+    "candidate_score",
+    "item_popularity",
+    "item_avg_rating",
+    "item_rating_count_log",
+    "user_mean_rating",
+    "user_count_log",
+    "genre_affinity",
+    "interaction_recency",
+    "release_year",
+    "candidate_score_pow2",
+    "item_popularity_pow2",
+    "item_avg_rating_pow2",
+    "item_rating_count_log_pow2",
+    "user_mean_rating_pow2",
+    "user_count_log_pow2",
+    "genre_affinity_pow2",
+    "interaction_recency_pow2",
+    "release_year_pow2",
+    "candidate_score_sqrt",
+    "item_popularity_sqrt",
+    "item_avg_rating_sqrt",
+    "item_rating_count_log_sqrt",
+    "user_mean_rating_sqrt",
+    "user_count_log_sqrt",
+    "genre_affinity_sqrt",
+    "interaction_recency_sqrt",
+    "release_year_sqrt"
+  ],
+  "relevance_threshold": 4.0,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.5723,
+      "val_loss": 0.5761,
+      "val_auc": 0.771
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.5474,
+      "val_loss": 0.5725,
+      "val_auc": 0.7791
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.5366,
+      "val_loss": 0.5668,
+      "val_auc": 0.7854
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.5273,
+      "val_loss": 0.5705,
+      "val_auc": 0.7816
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.519,
+      "val_loss": 0.5673,
+      "val_auc": 0.7849
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.5105,
+      "val_loss": 0.5578,
+      "val_auc": 0.7923
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.5034,
+      "val_loss": 0.5769,
+      "val_auc": 0.7886
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.496,
+      "val_loss": 0.5891,
+      "val_auc": 0.7822
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.4894,
+      "val_loss": 0.5939,
+      "val_auc": 0.7842
+    }
+  ]
+}
